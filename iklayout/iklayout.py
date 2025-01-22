@@ -3,7 +3,7 @@ from klayout import lay
 import asyncio
 from klayout import db
 from io import BytesIO
-from matplotlib.backend_bases import MouseEvent
+from matplotlib.backend_bases import KeyEvent, MouseEvent
 from matplotlib.transforms import Bbox
 import numpy as np
 from PIL import Image
@@ -40,6 +40,7 @@ class IKlayout:
     ruler_mode_active = False
     clear_ruler_btn: Button = None
     button_areas: list[Bbox] = []
+    shift_pressed = False
 
     def __init__(self, gds_file: PathLike):
         self.layout_view = lay.LayoutView()
@@ -94,6 +95,8 @@ class IKlayout:
         self.fig.canvas.mpl_connect('figure_enter_event', self.on_mouse_enter)
         self.fig.canvas.mpl_connect('figure_leave_event', self.on_mouse_leave)
         self.fig.canvas.mpl_connect('scroll_event', self.on_scroll)
+        self.fig.canvas.mpl_connect('key_press_event', self.on_key_down)
+        self.fig.canvas.mpl_connect('key_release_event', self.on_key_up)
 
         self._draw_zoom_buttons()
         self._draw_ruler_button()
@@ -121,10 +124,16 @@ class IKlayout:
     ):
         if self._is_event_in_button_area(event):
             return
-        point = db.Point(event.xdata, event.ydata)
-        function(point, lay.ButtonState.LeftButton)
 
-    @throttle(0.2)
+        point = db.Point(event.xdata, event.ydata)
+        button = lay.ButtonState.LeftButton
+
+        if self.shift_pressed:
+            button += lay.ButtonState.ShiftKey
+
+        function(point, button)
+
+    @throttle(0.1)
     def on_scroll(self, event: MouseEvent):
         if event.button == 'up':
             self.layout_view.zoom_in()
@@ -173,6 +182,14 @@ class IKlayout:
 
     def on_mouse_leave(self, event: MouseEvent):
         self.layout_view.send_leave_event()
+
+    def on_key_down(self, event: KeyEvent):
+        if event.key == 'shift':
+            self.shift_pressed = True
+
+    def on_key_up(self, event: KeyEvent):
+        if event.key == 'shift':
+            self.shift_pressed = False
 
     def _draw_cell_info(self, cell: CellInfo, point):
         self._remove_info_box()
