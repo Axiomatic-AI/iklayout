@@ -72,6 +72,7 @@ class IKlayout:
         self.fig.canvas.header_visible = False
         self.fig.canvas.footer_visible = False
         self.fig.canvas.resizable = False
+        self.fig.canvas.capture_scroll = True
 
         plt.subplots_adjust(
             left=0, right=1, top=1, bottom=0, wspace=0, hspace=0,
