@@ -1,10 +1,12 @@
 # iKlayout
 This is a port of [kLayout](https://www.klayout.de/) to a python notebook widget using matplotlib to enable interactive klayouts in notebooks.
 
-## Installation
+## Installation
+
 `pip install iklayout`
 
 ## Usage
+
 ```python
 %matplotlib widget
 
