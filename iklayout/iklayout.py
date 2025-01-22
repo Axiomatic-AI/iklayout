@@ -1,21 +1,28 @@
-from typing import Callable
+from typing import Callable, TypedDict
 from klayout import lay
 import asyncio
 from klayout import db
 from io import BytesIO
 import numpy as np
 from PIL import Image
-import plotly.graph_objects as go
-from plotly.callbacks import Points, InputDeviceState
+import matplotlib.pyplot as plt
+from matplotlib.image import AxesImage
 
 from os import PathLike
 
 
+class CellInfo(TypedDict):
+    name: str
+    id: int
+    bbox: db.Box
+    is_top: bool
+
+
 class IKlayout:
     layout_view: lay.LayoutView
-    fig: go.FigureWidget
-    trace: go.Figure
-    img: go.Image
+    fig: plt.Figure
+    ax: plt.Axes
+    img: AxesImage
     dimensions = (800, 600)
 
     def __init__(self, gds_file: PathLike):
@@ -40,75 +47,114 @@ class IKlayout:
         return np.array(Image.open(BytesIO(png_data)))
 
     def refresh(self):
-        print("refresh")
-        self.fig.update(
-            {
-                'data': [go.Image(
-                    z=self._get_image_array(),
-                )]
-            }
-        )
+        self.img.set_data(self._get_image_array())
 
     def show(self):
-        self.fig = go.FigureWidget(
-            go.Image(
-                z=self._get_image_array(),
-            )
+        self.fig, self.ax = plt.subplots(
+            figsize=(self.dimensions[0] / 100, self.dimensions[1] / 100)
         )
-        self.fig.update_layout(
-            margin=dict(l=0, r=0, b=0, t=0, pad=0),
-            autosize=True,
-            width=self.dimensions[0],
-            height=self.dimensions[1],
-            xaxis_visible=False,
-            yaxis_visible=False,
+        self.img = self.ax.imshow(self._get_image_array())
+        self.ax.axis('off')
+        self.ax.set_position([0, 0, 1, 1])
+        plt.subplots_adjust(
+            left=0, right=1, top=1, bottom=0, wspace=0, hspace=0
+        )  # Remove any padding
+        plt.tight_layout(pad=0)  # Ensure no space is wasted
+
+        self.fig.canvas.mpl_connect('button_press_event', self.on_mouse_press)
+        self.fig.canvas.mpl_connect(
+            'button_release_event', self.on_mouse_release
         )
+        self.fig.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
+        self.fig.canvas.mpl_connect('figure_enter_event', self.on_mouse_enter)
+        self.fig.canvas.mpl_connect('figure_leave_event', self.on_mouse_leave)
 
-        img: go.Image = self.fig.data[0]
-
-        img.on_click(self.on_mouse_click)
-        return self.fig
-
-    @property
-    def image(self) -> go.Image:
-        return self.fig.data[0]
+        plt.show()
 
     def handle_mouse_event(
-        self,
-        function: Callable[[int, bool, db.DPoint, int], None],
-        trace,
-        points: Points,
-        state: InputDeviceState
+            self,
+            function: Callable[[int, bool, db.DPoint, int], None],
+            event
     ):
-        function(
-            db.Point(points.xs[0], points.ys[0]), lay.ButtonState.LeftButton
-        )
+        point = db.Point(event.xdata, event.ydata)
+        function(point, lay.ButtonState.LeftButton)
 
-    def on_mouse_click(self, *args, **kwargs):
-        self.handle_mouse_event(
-                self.layout_view.send_mouse_press_event, *args, **kwargs
+    def on_mouse_press(self, event):
+        if event.dblclick:
+            return
+        else:
+            self.handle_mouse_event(
+                self.layout_view.send_mouse_press_event, event
             )
-        self.handle_mouse_event(
-                self.layout_view.send_mouse_release_event, *args, **kwargs
-            )
 
-    def on_mouse_release(self, *args, **kwargs):
-        print("clicked")
+    def on_mouse_release(self, event):
         self.handle_mouse_event(
-            self.layout_view.send_mouse_release_event, *args, **kwargs
+            self.layout_view.send_mouse_release_event,
+            event
         )
 
-    def on_mouse_move(self, *args, **kwargs):
-        self.handle_mouse_event(
-            self.layout_view.send_mouse_move_event, *args, **kwargs
-        )
+        selected_cell = self._get_selected_cell()
+        if selected_cell:
+            self._draw_cell_info(selected_cell)
 
-    def on_mouse_enter(self, *args, **kwargs):
+    def on_mouse_move(self, event):
+        self.handle_mouse_event(self.layout_view.send_mouse_move_event, event)
+
+    def on_mouse_enter(self, event):
         self.layout_view.send_enter_event()
 
-    def on_mouse_leave(self, *args, **kwargs):
+    def on_mouse_leave(self, event):
         self.layout_view.send_leave_event()
 
-    def get_selected_cell(self):
-        selected_cells_paths = self.layout_view.selected
-        return self.layout_view.cell(selected_cells_paths[0])
+    def _draw_cell_info(self, cell: CellInfo):
+        print(cell)
+
+    def _get_selected_cell(self) -> CellInfo | None:
+        all_cells = self.get_all_cells()
+        selected_cell = None
+
+        # Iterate through the selected objects
+        for obj in self.layout_view.each_object_selected():
+            # Get the instance path of the selected object
+            cell_index = obj.cell_index()
+            for cell in all_cells:
+                if cell["id"] == cell_index:
+                    selected_cell = cell
+                    break
+
+        return selected_cell
+
+    def get_all_cells(self) -> list[CellInfo]:
+        layout = self.layout_view.active_cellview().layout()
+        top_cells = layout.top_cells()
+
+        cells = []
+
+        def get_children(cell: db.Cell):
+            if not cell.child_cells():
+                return []
+            iter = cell.each_child_cell()
+            for child_idx in iter:
+                child = layout.cell(child_idx)
+                cells.append(
+                    {
+                        "name": child.name,
+                        "id": child.cell_index(),
+                        "bbox": child.bbox(),
+                        "is_top": False
+                    }
+                )
+                get_children(child)
+
+        for top_cell in top_cells:
+            cells.append(
+                {
+                    "name": top_cell.name,
+                    "id": top_cell.cell_index(),
+                    "bbox": top_cell.bbox(),
+                    "is_top": True,
+                }
+            )
+            get_children(top_cell),
+
+        return cells
