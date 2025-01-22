@@ -8,6 +8,9 @@ from PIL import Image
 import matplotlib.pyplot as plt
 from matplotlib.image import AxesImage
 import matplotlib.patches as patches
+from matplotlib.widgets import Button
+from .throttle import throttle
+
 
 
 from os import PathLike
@@ -28,6 +31,9 @@ class IKlayout:
     info_box: patches.Rectangle | None = None
     info_text: plt.Text | None = None
     dimensions = (800, 600)
+    zoom_in_btn: Button = None
+    zoom_out_btn: Button = None
+    reset_zoom_btn: Button = None
 
     def __init__(self, gds_file: PathLike):
         self.layout_view = lay.LayoutView()
@@ -56,15 +62,22 @@ class IKlayout:
 
     def show(self):
         self.fig, self.ax = plt.subplots(
+
             figsize=(self.dimensions[0] / 100, self.dimensions[1] / 100)
         )
         self.img = self.ax.imshow(self._get_image_array())
         self.ax.axis('off')
         self.ax.set_position([0, 0, 1, 1])
+
+        self.fig.canvas.toolbar_visible = False
+        self.fig.canvas.header_visible = False
+        self.fig.canvas.footer_visible = False
+        self.fig.canvas.resizable = False
+
         plt.subplots_adjust(
-            left=0, right=1, top=1, bottom=0, wspace=0, hspace=0
-        )  # Remove any padding
-        plt.tight_layout(pad=0)  # Ensure no space is wasted
+            left=0, right=1, top=1, bottom=0, wspace=0, hspace=0,
+        )
+        plt.tight_layout(pad=0)
 
         self.fig.canvas.mpl_connect('button_press_event', self.on_mouse_press)
         self.fig.canvas.mpl_connect(
@@ -73,6 +86,9 @@ class IKlayout:
         self.fig.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
         self.fig.canvas.mpl_connect('figure_enter_event', self.on_mouse_enter)
         self.fig.canvas.mpl_connect('figure_leave_event', self.on_mouse_leave)
+        self.fig.canvas.mpl_connect('scroll_event', self.on_scroll)
+
+        self._draw_zoom_buttons()
 
         plt.show()
 
@@ -83,6 +99,13 @@ class IKlayout:
     ):
         point = db.Point(event.xdata, event.ydata)
         function(point, lay.ButtonState.LeftButton)
+
+    @throttle(0.1)
+    def on_scroll(self, event):
+        if event.button == 'up':
+            self.layout_view.zoom_in()
+        elif event.button == 'down':
+            self.layout_view.zoom_out()
 
     def on_mouse_press(self, event):
         if event.dblclick:
@@ -118,7 +141,7 @@ class IKlayout:
 
         text = f"Cell: {cell['name']}"
         fontsize = 12
-        box_height = 20
+        box_height = 30
 
         temp_text = self.ax.text(0, 0, text, fontsize=fontsize, va='center', ha='center')
         renderer = self.fig.canvas.get_renderer()
@@ -132,7 +155,7 @@ class IKlayout:
 
         self.info_box = patches.Rectangle(
             (box_x, box_y), box_width, box_height,
-            linewidth=2, edgecolor='red', facecolor='none'
+            linewidth=2, edgecolor='green', facecolor='none'
         )
         self.ax.add_patch(self.info_box)
 
@@ -140,11 +163,19 @@ class IKlayout:
             box_x + box_width / 2,
             box_y + box_height / 2,
             text,
-            color='red',
+            color='green',
             fontsize=fontsize,
             ha='center',
             va='center'
         )
+
+    def reset_zoom(self, *args):
+        self.layout_view.zoom_fit()
+
+    def _draw_zoom_buttons(self):
+        reset_zoom = self.fig.add_axes([0.89, 0.93, 0.1, 0.05])
+        self.reset_zoom_btn = Button(reset_zoom, 'Reset')
+        self.reset_zoom_btn.on_clicked(self.reset_zoom)
 
     def _get_selected_cell(self) -> CellInfo | None:
         all_cells = self.get_all_cells()
