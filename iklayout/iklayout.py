@@ -124,7 +124,7 @@ class IKlayout:
         point = db.Point(event.xdata, event.ydata)
         function(point, lay.ButtonState.LeftButton)
 
-    @throttle(0.2)
+    @throttle(0.1)
     def on_scroll(self, event: MouseEvent):
         if event.button == 'up':
             self.layout_view.zoom_in()
