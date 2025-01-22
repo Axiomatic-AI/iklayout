@@ -7,6 +7,8 @@ import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
 from matplotlib.image import AxesImage
+import matplotlib.patches as patches
+
 
 from os import PathLike
 
@@ -23,6 +25,8 @@ class IKlayout:
     fig: plt.Figure
     ax: plt.Axes
     img: AxesImage
+    info_box: patches.Rectangle | None = None
+    info_text: plt.Text | None = None
     dimensions = (800, 600)
 
     def __init__(self, gds_file: PathLike):
@@ -48,6 +52,7 @@ class IKlayout:
 
     def refresh(self):
         self.img.set_data(self._get_image_array())
+        self.fig.canvas.draw()
 
     def show(self):
         self.fig, self.ax = plt.subplots(
@@ -107,7 +112,39 @@ class IKlayout:
         self.layout_view.send_leave_event()
 
     def _draw_cell_info(self, cell: CellInfo):
-        print(cell)
+        if self.info_box:
+            self.info_box.remove()
+            self.text.remove()
+
+        text = f"Cell: {cell['name']}"
+        fontsize = 12
+        box_height = 20
+
+        temp_text = self.ax.text(0, 0, text, fontsize=fontsize, va='center', ha='center')
+        renderer = self.fig.canvas.get_renderer()
+        bbox = temp_text.get_window_extent(renderer)
+        temp_text.remove()
+
+        display_to_data_ratio = self.ax.transData.inverted().transform((1, 0))[0] - self.ax.transData.inverted().transform((0, 0))[0]
+        box_width = (bbox.width * display_to_data_ratio) + 10
+
+        box_x, box_y = 50, 50
+
+        self.info_box = patches.Rectangle(
+            (box_x, box_y), box_width, box_height,
+            linewidth=2, edgecolor='red', facecolor='none'
+        )
+        self.ax.add_patch(self.info_box)
+
+        self.text = self.ax.text(
+            box_x + box_width / 2,
+            box_y + box_height / 2,
+            text,
+            color='red',
+            fontsize=fontsize,
+            ha='center',
+            va='center'
+        )
 
     def _get_selected_cell(self) -> CellInfo | None:
         all_cells = self.get_all_cells()
