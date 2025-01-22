@@ -12,7 +12,7 @@ This is a port of [kLayout](https://www.klayout.de/) to a python notebook widget
 
 import iklayout
 
-path = "PATH_T_A_GDS_FILE"
+path = "/path/to/your/gds.gds"
 
 iklayout.show(path)
 ```
