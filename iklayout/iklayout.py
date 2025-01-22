@@ -10,7 +10,7 @@ from matplotlib.image import AxesImage
 import matplotlib.patches as patches
 from matplotlib.widgets import Button
 from .throttle import throttle
-
+from matplotlib.patches import FancyBboxPatch
 
 
 from os import PathLike
@@ -62,7 +62,6 @@ class IKlayout:
 
     def show(self):
         self.fig, self.ax = plt.subplots(
-
             figsize=(self.dimensions[0] / 100, self.dimensions[1] / 100)
         )
         self.img = self.ax.imshow(self._get_image_array())
@@ -78,6 +77,7 @@ class IKlayout:
             left=0, right=1, top=1, bottom=0, wspace=0, hspace=0,
         )
         plt.tight_layout(pad=0)
+        self.ax.set_aspect('auto', 'box')
 
         self.fig.canvas.mpl_connect('button_press_event', self.on_mouse_press)
         self.fig.canvas.mpl_connect(
@@ -100,7 +100,7 @@ class IKlayout:
         point = db.Point(event.xdata, event.ydata)
         function(point, lay.ButtonState.LeftButton)
 
-    @throttle(0.1)
+    @throttle(0.2)
     def on_scroll(self, event):
         if event.button == 'up':
             self.layout_view.zoom_in()
@@ -123,7 +123,17 @@ class IKlayout:
 
         selected_cell = self._get_selected_cell()
         if selected_cell:
-            self._draw_cell_info(selected_cell)
+            point = (event.xdata, event.ydata)
+            self._draw_cell_info(selected_cell, point)
+        else:
+            self._remove_info_box()
+
+    def _remove_info_box(self):
+        if not self.info_box:
+            return
+        self.info_box.remove()
+        self.text.remove()
+        self.info_box = None
 
     def on_mouse_move(self, event):
         self.handle_mouse_event(self.layout_view.send_mouse_move_event, event)
@@ -134,13 +144,11 @@ class IKlayout:
     def on_mouse_leave(self, event):
         self.layout_view.send_leave_event()
 
-    def _draw_cell_info(self, cell: CellInfo):
-        if self.info_box:
-            self.info_box.remove()
-            self.text.remove()
+    def _draw_cell_info(self, cell: CellInfo, point):
+        self._remove_info_box()
 
-        text = f"Cell: {cell['name']}"
-        fontsize = 12
+        text = f"{cell['name']}"
+        fontsize = 8
         box_height = 30
 
         temp_text = self.ax.text(0, 0, text, fontsize=fontsize, va='center', ha='center')
@@ -149,13 +157,27 @@ class IKlayout:
         temp_text.remove()
 
         display_to_data_ratio = self.ax.transData.inverted().transform((1, 0))[0] - self.ax.transData.inverted().transform((0, 0))[0]
-        box_width = (bbox.width * display_to_data_ratio) + 10
+        box_width = (bbox.width * display_to_data_ratio) + 20
 
-        box_x, box_y = 50, 50
+        box_x, box_y = point
+        offset = 15
+        box_x += offset
+        box_y += offset
 
-        self.info_box = patches.Rectangle(
+        # Ensure the box does not collide with the edges of the plot
+        if box_x + box_width > self.ax.get_xlim()[1]:
+            box_x -= (box_width + 20)
+        if box_y + box_height > self.ax.get_ylim()[0]:
+            box_y -= (box_height + 20)
+
+        self.info_box = FancyBboxPatch(
             (box_x, box_y), box_width, box_height,
-            linewidth=2, edgecolor='green', facecolor='none'
+            boxstyle="round,pad=0.5,rounding_size=0.3",
+            linewidth=2,
+            edgecolor='#4CAF50',
+            facecolor='#6EB700',
+            alpha=0.9,
+            mutation_scale=10
         )
         self.ax.add_patch(self.info_box)
 
@@ -163,18 +185,25 @@ class IKlayout:
             box_x + box_width / 2,
             box_y + box_height / 2,
             text,
-            color='green',
+            color='white',
             fontsize=fontsize,
             ha='center',
-            va='center'
+            va='center',
+            fontweight='bold'
         )
 
     def reset_zoom(self, *args):
         self.layout_view.zoom_fit()
 
     def _draw_zoom_buttons(self):
-        reset_zoom = self.fig.add_axes([0.89, 0.93, 0.1, 0.05])
-        self.reset_zoom_btn = Button(reset_zoom, 'Reset')
+        reset_zoom = self.fig.add_axes([0.91, 0.93, 0.08, 0.05])
+        self.reset_zoom_btn = Button(
+            reset_zoom, 'Reset',
+            color='#6EB700', hovercolor='#4CAF50'
+        )
+        self.reset_zoom_btn.label.set_fontsize(10)
+        self.reset_zoom_btn.label.set_color('white')
+        self.reset_zoom_btn.label.set_fontweight(500)
         self.reset_zoom_btn.on_clicked(self.reset_zoom)
 
     def _get_selected_cell(self) -> CellInfo | None:
