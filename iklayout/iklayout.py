@@ -151,12 +151,17 @@ class IKlayout:
         fontsize = 8
         box_height = 30
 
-        temp_text = self.ax.text(0, 0, text, fontsize=fontsize, va='center', ha='center')
+        temp_text = self.ax.text(
+            0, 0, text, fontsize=fontsize, va='center', ha='center'
+        )
         renderer = self.fig.canvas.get_renderer()
         bbox = temp_text.get_window_extent(renderer)
         temp_text.remove()
 
-        display_to_data_ratio = self.ax.transData.inverted().transform((1, 0))[0] - self.ax.transData.inverted().transform((0, 0))[0]
+        display_to_data_ratio = (
+            self.ax.transData.inverted().transform((1, 0))[0] 
+            - self.ax.transData.inverted().transform((0, 0))[0]
+        )
         box_width = (bbox.width * display_to_data_ratio) + 20
 
         box_x, box_y = point
