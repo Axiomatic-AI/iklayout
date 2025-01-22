@@ -120,7 +120,6 @@ class IKlayout:
             event: MouseEvent
     ):
         if self._is_event_in_button_area(event):
-            print("Event in button area")
             return
         point = db.Point(event.xdata, event.ydata)
         function(point, lay.ButtonState.LeftButton)
@@ -250,17 +249,17 @@ class IKlayout:
         self.ruler_toggle_btn = CheckButtons(
             ruler_toggle,
             ['Ruler'],
-            [self.ruler_mode_active]
+            [self.ruler_mode_active],
         )
+
         self.ruler_toggle_btn.on_clicked(self.toggle_ruler)
 
         clear_ruler = self.fig.add_axes([0.12, 0.93, 0.08, 0.05])
         self.clear_ruler_btn = Button(
             clear_ruler, 'Clear',
-            color='#6EB700', hovercolor='#4CAF50'
+            color='white',
         )
         self.clear_ruler_btn.label.set_fontsize(10)
-        self.clear_ruler_btn.label.set_color('white')
         self.clear_ruler_btn.label.set_fontweight(500)
         self.clear_ruler_btn.on_clicked(self.clear_rulers)
 
