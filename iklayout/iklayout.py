@@ -3,12 +3,14 @@ from klayout import lay
 import asyncio
 from klayout import db
 from io import BytesIO
+from matplotlib.backend_bases import MouseEvent
+from matplotlib.transforms import Bbox
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
 from matplotlib.image import AxesImage
 import matplotlib.patches as patches
-from matplotlib.widgets import Button
+from matplotlib.widgets import Button, CheckButtons
 from .throttle import throttle
 from matplotlib.patches import FancyBboxPatch
 
@@ -34,6 +36,10 @@ class IKlayout:
     zoom_in_btn: Button = None
     zoom_out_btn: Button = None
     reset_zoom_btn: Button = None
+    ruler_toggle_btn: Button = None
+    ruler_mode_active = False
+    clear_ruler_btn: Button = None
+    button_areas: list[Bbox] = []
 
     def __init__(self, gds_file: PathLike):
         self.layout_view = lay.LayoutView()
@@ -90,25 +96,43 @@ class IKlayout:
         self.fig.canvas.mpl_connect('scroll_event', self.on_scroll)
 
         self._draw_zoom_buttons()
+        self._draw_ruler_button()
+        self._update_button_areas()
 
         plt.show()
+
+    def _update_button_areas(self) -> list[Bbox]:
+        self.button_areas = [
+            self.reset_zoom_btn.ax.bbox,
+            self.ruler_toggle_btn.ax.bbox,
+            self.clear_ruler_btn.ax.bbox,
+        ]
+
+    def _is_event_in_button_area(self, event: MouseEvent):
+        for area in self.button_areas:
+            if area.contains(event.x, event.y):
+                return True
+        return False
 
     def handle_mouse_event(
             self,
             function: Callable[[int, bool, db.DPoint, int], None],
-            event
+            event: MouseEvent
     ):
+        if self._is_event_in_button_area(event):
+            print("Event in button area")
+            return
         point = db.Point(event.xdata, event.ydata)
         function(point, lay.ButtonState.LeftButton)
 
     @throttle(0.2)
-    def on_scroll(self, event):
+    def on_scroll(self, event: MouseEvent):
         if event.button == 'up':
             self.layout_view.zoom_in()
         elif event.button == 'down':
             self.layout_view.zoom_out()
 
-    def on_mouse_press(self, event):
+    def on_mouse_press(self, event: MouseEvent):
         if event.dblclick:
             return
         else:
@@ -116,18 +140,24 @@ class IKlayout:
                 self.layout_view.send_mouse_press_event, event
             )
 
-    def on_mouse_release(self, event):
+    def _on_selection_changed(self, event: MouseEvent):
+        selected_cell = self._get_selected_cell()
+
+        if selected_cell and not self.ruler_mode_active:
+            point = (event.xdata, event.ydata)
+            self._draw_cell_info(selected_cell, point)
+        else:
+            self._remove_info_box()
+
+    def on_mouse_release(self, event: MouseEvent):
         self.handle_mouse_event(
             self.layout_view.send_mouse_release_event,
             event
         )
 
-        selected_cell = self._get_selected_cell()
-        if selected_cell:
-            point = (event.xdata, event.ydata)
-            self._draw_cell_info(selected_cell, point)
-        else:
-            self._remove_info_box()
+        if (not self.ruler_mode_active
+                and not self._is_event_in_button_area(event)):
+            self._on_selection_changed(event)
 
     def _remove_info_box(self):
         if not self.info_box:
@@ -136,13 +166,13 @@ class IKlayout:
         self.text.remove()
         self.info_box = None
 
-    def on_mouse_move(self, event):
+    def on_mouse_move(self, event: MouseEvent):
         self.handle_mouse_event(self.layout_view.send_mouse_move_event, event)
 
-    def on_mouse_enter(self, event):
+    def on_mouse_enter(self, event: MouseEvent):
         self.layout_view.send_enter_event()
 
-    def on_mouse_leave(self, event):
+    def on_mouse_leave(self, event: MouseEvent):
         self.layout_view.send_leave_event()
 
     def _draw_cell_info(self, cell: CellInfo, point):
@@ -202,7 +232,7 @@ class IKlayout:
         self.layout_view.zoom_fit()
 
     def _draw_zoom_buttons(self):
-        reset_zoom = self.fig.add_axes([0.91, 0.93, 0.08, 0.05])
+        reset_zoom = self.fig.add_axes([0.9, 0.93, 0.08, 0.05])
         self.reset_zoom_btn = Button(
             reset_zoom, 'Reset',
             color='#6EB700', hovercolor='#4CAF50'
@@ -211,6 +241,45 @@ class IKlayout:
         self.reset_zoom_btn.label.set_color('white')
         self.reset_zoom_btn.label.set_fontweight(500)
         self.reset_zoom_btn.on_clicked(self.reset_zoom)
+
+    def _draw_ruler_button(self):
+        if "ruler" not in self.layout_view.mode_names():
+            return
+
+        ruler_toggle = self.fig.add_axes([0.02, 0.93, 0.08, 0.05])
+        self.ruler_toggle_btn = CheckButtons(
+            ruler_toggle,
+            ['Ruler'],
+            [self.ruler_mode_active]
+        )
+        self.ruler_toggle_btn.on_clicked(self.toggle_ruler)
+
+        clear_ruler = self.fig.add_axes([0.12, 0.93, 0.08, 0.05])
+        self.clear_ruler_btn = Button(
+            clear_ruler, 'Clear',
+            color='#6EB700', hovercolor='#4CAF50'
+        )
+        self.clear_ruler_btn.label.set_fontsize(10)
+        self.clear_ruler_btn.label.set_color('white')
+        self.clear_ruler_btn.label.set_fontweight(500)
+        self.clear_ruler_btn.on_clicked(self.clear_rulers)
+
+    def clear_rulers(self, *args):
+        self.layout_view.clear_annotations()
+
+    def toggle_ruler(self, label):
+        if self.ruler_mode_active:
+            self.layout_view.switch_mode("select")
+            self.ruler_mode_active = False
+        else:
+            self.layout_view.switch_mode("ruler")
+            self.ruler_mode_active = True
+            self._remove_info_box()
+            self.layout_view.clear_selection()
+        self._update_ruler_button()
+
+    def _update_ruler_button(self):
+        pass
 
     def _get_selected_cell(self) -> CellInfo | None:
         all_cells = self.get_all_cells()
