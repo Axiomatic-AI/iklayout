@@ -4,6 +4,7 @@ import asyncio
 from klayout import db
 from io import BytesIO
 from matplotlib.backend_bases import KeyEvent, MouseEvent
+from matplotlib.text import Text
 from matplotlib.transforms import Bbox
 import numpy as np
 from PIL import Image
@@ -41,6 +42,7 @@ class IKlayout:
     clear_ruler_btn: Button = None
     button_areas: list[Bbox] = []
     shift_pressed = False
+    coord_text: Text
 
     def __init__(self, gds_file: PathLike):
         self.layout_view = lay.LayoutView()
@@ -72,6 +74,19 @@ class IKlayout:
             figsize=(self.dimensions[0] / 100, self.dimensions[1] / 100)
         )
         self.img = self.ax.imshow(self._get_image_array())
+        self.coord_text = self.ax.text(
+            x=0.98,
+            y=0.02,
+            s="",
+            transform=self.ax.transAxes,
+            va="bottom",
+            ha="right",
+            color="white",
+            fontsize=9,
+            backgroundcolor="black",
+            alpha=0.7,
+        )
+
         self.ax.axis("off")
         self.ax.set_position([0, 0, 1, 1])
 
@@ -169,8 +184,26 @@ class IKlayout:
         self.text.remove()
         self.info_box = None
 
+    def _update_coords_text(self, event: MouseEvent):
+        pixel_pt = db.DPoint(event.xdata, event.ydata)
+
+        # convert pixel units into db units
+        vp_trans = self.layout_view.viewport_trans()
+        inv = vp_trans.inverted()
+        db_pt = inv.trans(pixel_pt)
+
+        # scale position
+        dbu = self.layout_view.active_cellview().layout().dbu
+        x_um = db_pt.x * dbu
+        y_um = db_pt.y * dbu
+
+        coord_str = f"X = {x_um:,.3f} µm\nY = {y_um:,.3f} µm"
+        # coord_str = f"{str(event)}"
+        self.coord_text.set_text(coord_str)
+
     def on_mouse_move(self, event: MouseEvent):
         self.handle_mouse_event(self.layout_view.send_mouse_move_event, event)
+        self._update_coords_text(event)
 
     def on_mouse_enter(self, event: MouseEvent):
         self.layout_view.send_enter_event()
