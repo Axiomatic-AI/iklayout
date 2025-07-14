@@ -54,7 +54,7 @@ class IKlayout:
 
     async def timer(self):
         self.layout_view.on_image_updated_event = self.refresh
-        while (True):
+        while True:
             self.layout_view.timer()
             await asyncio.sleep(0.01)
 
@@ -72,7 +72,7 @@ class IKlayout:
             figsize=(self.dimensions[0] / 100, self.dimensions[1] / 100)
         )
         self.img = self.ax.imshow(self._get_image_array())
-        self.ax.axis('off')
+        self.ax.axis("off")
         self.ax.set_position([0, 0, 1, 1])
 
         self.fig.canvas.toolbar_visible = False
@@ -82,21 +82,24 @@ class IKlayout:
         self.fig.canvas.capture_scroll = True
 
         plt.subplots_adjust(
-            left=0, right=1, top=1, bottom=0, wspace=0, hspace=0,
+            left=0,
+            right=1,
+            top=1,
+            bottom=0,
+            wspace=0,
+            hspace=0,
         )
         plt.tight_layout(pad=0)
-        self.ax.set_aspect('auto', 'box')
+        self.ax.set_aspect("auto", "box")
 
-        self.fig.canvas.mpl_connect('button_press_event', self.on_mouse_press)
-        self.fig.canvas.mpl_connect(
-            'button_release_event', self.on_mouse_release
-        )
-        self.fig.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
-        self.fig.canvas.mpl_connect('figure_enter_event', self.on_mouse_enter)
-        self.fig.canvas.mpl_connect('figure_leave_event', self.on_mouse_leave)
-        self.fig.canvas.mpl_connect('scroll_event', self.on_scroll)
-        self.fig.canvas.mpl_connect('key_press_event', self.on_key_down)
-        self.fig.canvas.mpl_connect('key_release_event', self.on_key_up)
+        self.fig.canvas.mpl_connect("button_press_event", self.on_mouse_press)
+        self.fig.canvas.mpl_connect("button_release_event", self.on_mouse_release)
+        self.fig.canvas.mpl_connect("motion_notify_event", self.on_mouse_move)
+        self.fig.canvas.mpl_connect("figure_enter_event", self.on_mouse_enter)
+        self.fig.canvas.mpl_connect("figure_leave_event", self.on_mouse_leave)
+        self.fig.canvas.mpl_connect("scroll_event", self.on_scroll)
+        self.fig.canvas.mpl_connect("key_press_event", self.on_key_down)
+        self.fig.canvas.mpl_connect("key_release_event", self.on_key_up)
 
         self._draw_zoom_buttons()
         self._draw_ruler_button()
@@ -118,9 +121,7 @@ class IKlayout:
         return False
 
     def handle_mouse_event(
-            self,
-            function: Callable[[int, bool, db.DPoint, int], None],
-            event: MouseEvent
+        self, function: Callable[[int, bool, db.DPoint, int], None], event: MouseEvent
     ):
         if self._is_event_in_button_area(event):
             return
@@ -135,18 +136,16 @@ class IKlayout:
 
     @throttle(0.1)
     def on_scroll(self, event: MouseEvent):
-        if event.button == 'up':
+        if event.button == "up":
             self.layout_view.zoom_in()
-        elif event.button == 'down':
+        elif event.button == "down":
             self.layout_view.zoom_out()
 
     def on_mouse_press(self, event: MouseEvent):
         if event.dblclick:
             return
         else:
-            self.handle_mouse_event(
-                self.layout_view.send_mouse_press_event, event
-            )
+            self.handle_mouse_event(self.layout_view.send_mouse_press_event, event)
 
     def _on_selection_changed(self, event: MouseEvent):
         selected_cell = self._get_selected_cell()
@@ -158,13 +157,9 @@ class IKlayout:
             self._remove_info_box()
 
     def on_mouse_release(self, event: MouseEvent):
-        self.handle_mouse_event(
-            self.layout_view.send_mouse_release_event,
-            event
-        )
+        self.handle_mouse_event(self.layout_view.send_mouse_release_event, event)
 
-        if (not self.ruler_mode_active
-                and not self._is_event_in_button_area(event)):
+        if not self.ruler_mode_active and not self._is_event_in_button_area(event):
             self._on_selection_changed(event)
 
     def _remove_info_box(self):
@@ -184,11 +179,11 @@ class IKlayout:
         self.layout_view.send_leave_event()
 
     def on_key_down(self, event: KeyEvent):
-        if event.key == 'shift':
+        if event.key == "shift":
             self.shift_pressed = True
 
     def on_key_up(self, event: KeyEvent):
-        if event.key == 'shift':
+        if event.key == "shift":
             self.shift_pressed = False
 
     def _draw_cell_info(self, cell: CellInfo, point):
@@ -199,14 +194,14 @@ class IKlayout:
         box_height = 30
 
         temp_text = self.ax.text(
-            0, 0, text, fontsize=fontsize, va='center', ha='center'
+            0, 0, text, fontsize=fontsize, va="center", ha="center"
         )
         renderer = self.fig.canvas.get_renderer()
         bbox = temp_text.get_window_extent(renderer)
         temp_text.remove()
 
         display_to_data_ratio = (
-            self.ax.transData.inverted().transform((1, 0))[0] 
+            self.ax.transData.inverted().transform((1, 0))[0]
             - self.ax.transData.inverted().transform((0, 0))[0]
         )
         box_width = (bbox.width * display_to_data_ratio) + 20
@@ -218,18 +213,20 @@ class IKlayout:
 
         # Ensure the box does not collide with the edges of the plot
         if box_x + box_width > self.ax.get_xlim()[1]:
-            box_x -= (box_width + 20)
+            box_x -= box_width + 20
         if box_y + box_height > self.ax.get_ylim()[0]:
-            box_y -= (box_height + 20)
+            box_y -= box_height + 20
 
         self.info_box = FancyBboxPatch(
-            (box_x, box_y), box_width, box_height,
+            (box_x, box_y),
+            box_width,
+            box_height,
             boxstyle="round,pad=0.5,rounding_size=0.3",
             linewidth=2,
-            edgecolor='#4CAF50',
-            facecolor='#6EB700',
+            edgecolor="#4CAF50",
+            facecolor="#6EB700",
             alpha=0.9,
-            mutation_scale=10
+            mutation_scale=10,
         )
         self.ax.add_patch(self.info_box)
 
@@ -237,11 +234,11 @@ class IKlayout:
             box_x + box_width / 2,
             box_y + box_height / 2,
             text,
-            color='white',
+            color="white",
             fontsize=fontsize,
-            ha='center',
-            va='center',
-            fontweight='bold'
+            ha="center",
+            va="center",
+            fontweight="bold",
         )
 
     def reset_zoom(self, *args):
@@ -250,11 +247,10 @@ class IKlayout:
     def _draw_zoom_buttons(self):
         reset_zoom = self.fig.add_axes([0.9, 0.93, 0.08, 0.05])
         self.reset_zoom_btn = Button(
-            reset_zoom, 'Reset',
-            color='#6EB700', hovercolor='#4CAF50'
+            reset_zoom, "Reset", color="#6EB700", hovercolor="#4CAF50"
         )
         self.reset_zoom_btn.label.set_fontsize(10)
-        self.reset_zoom_btn.label.set_color('white')
+        self.reset_zoom_btn.label.set_color("white")
         self.reset_zoom_btn.label.set_fontweight(500)
         self.reset_zoom_btn.on_clicked(self.reset_zoom)
 
@@ -265,7 +261,7 @@ class IKlayout:
         ruler_toggle = self.fig.add_axes([0.02, 0.93, 0.08, 0.05])
         self.ruler_toggle_btn = CheckButtons(
             ruler_toggle,
-            ['Ruler'],
+            ["Ruler"],
             [self.ruler_mode_active],
         )
 
@@ -273,8 +269,9 @@ class IKlayout:
 
         clear_ruler = self.fig.add_axes([0.12, 0.93, 0.08, 0.05])
         self.clear_ruler_btn = Button(
-            clear_ruler, 'Clear',
-            color='white',
+            clear_ruler,
+            "Clear",
+            color="white",
         )
         self.clear_ruler_btn.label.set_fontsize(10)
         self.clear_ruler_btn.label.set_fontweight(500)
@@ -329,7 +326,7 @@ class IKlayout:
                         "name": child.name,
                         "id": child.cell_index(),
                         "bbox": child.bbox(),
-                        "is_top": False
+                        "is_top": False,
                     }
                 )
                 get_children(child)
@@ -343,6 +340,6 @@ class IKlayout:
                     "is_top": True,
                 }
             )
-            get_children(top_cell),
+            (get_children(top_cell),)
 
         return cells
