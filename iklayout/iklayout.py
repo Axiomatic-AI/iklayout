@@ -373,6 +373,6 @@ class IKlayout:
                     "is_top": True,
                 }
             )
-            (get_children(top_cell),)
+            get_children(top_cell)
 
         return cells
