@@ -198,7 +198,6 @@ class IKlayout:
         y_um = db_pt.y * dbu
 
         coord_str = f"X = {x_um:,.3f} µm\nY = {y_um:,.3f} µm"
-        # coord_str = f"{str(event)}"
         self.coord_text.set_text(coord_str)
 
     def on_mouse_move(self, event: MouseEvent):
