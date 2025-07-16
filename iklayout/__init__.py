@@ -1,6 +1,11 @@
+from importlib.metadata import version, PackageNotFoundError
+from os import PathLike
 from .iklayout import IKlayout
 
-from os import PathLike
+try:
+    __version__ = version("iklayout")
+except PackageNotFoundError:
+    __version__ = "unknown"
 
 
 def show(c: PathLike):

@@ -13,5 +13,7 @@ def throttle(wait_time: int = 0.1):
                 result = func(*args, **kwargs)
                 last_called[0] = current_time
                 return result
+
         return wrapped
+
     return decorator
